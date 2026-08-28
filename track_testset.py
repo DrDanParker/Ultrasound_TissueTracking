@@ -1,5 +1,6 @@
 ####
 import os
+import local_file_links as lf ## Localised script to set directories for local test files - to be updated with links to test set available on git. 
 import pydicom
 import xarray as xr
 import pandas as pd
@@ -240,8 +241,11 @@ def spectrum(dat,dicom_path,filename,steps=20,width=5):
 
 #test file:
 # dicom_path = 'C:/Users/hls376/University of Salford/Ultrasound in Diabetes - General/Pilot/Tracker_TestSet/Heel Hoc_L8/'
-dicom_path = 'C:/Users/hls376/University of Salford/Ultrasound in Diabetes - General/Pilot/Tracker_TestSet/1MTP L2-9/'
+dicom_path = lf.ultra_point() + '/1MTP L2-9/'
 
+# print(dicom_path)
+
+'''
 # fname = 'DB105_2_CALC_L2-9'
 # flist = os.listdir(dicom_path)
 flist = [file for file in os.listdir(dicom_path) if os.path.isfile(os.path.join(dicom_path, file)) and '.' not in file]
@@ -266,3 +270,4 @@ for filename in flist:
 ###
 
 
+'''

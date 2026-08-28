@@ -18,6 +18,7 @@ Code currently arranged as scripts with distinct functions:
 * us\_spectrum = analysis of layers within tissue
 * clean\_image = apply filters to reduce speckle noise
 * track\_testset = implementation of feature ID and tracking
+* calc\_proc = application to analysis of calcaneus region images
 
 Author: Dan Parker - University of Salford - 2023 - 2026
 d.j.parker1@salford.ac.uk

@@ -1,5 +1,6 @@
 ####
 import os
+import cv2 
 import local_file_links as lf ## Localised script to set directories for local test files - to be updated with links to test set available on git. 
 import pydicom
 import xarray as xr
@@ -33,6 +34,120 @@ def load_dat(dicom_file): # Loads dicom file, converts to pixel array and return
     # plt.show()
     return(da, cropped)
 
+## Detection Algorithms
+def canny_detect(df):
+
+    img = df.astype(np.uint8)
+    blur = cv2.GaussianBlur(img, (5, 5), 0)
+    edges1 = cv2.Canny(blur, 30, 200)
+    edges2 = cv2.Canny(blur, 50, 150)
+    edges3 = cv2.Canny(blur, 75, 200)
+
+    plt.figure()
+    plt.subplot(231)
+    plt.imshow(img,cmap='gray')
+    plt.subplot(232)
+    plt.imshow(blur,cmap='gray')
+    plt.subplot(234)
+    plt.imshow(edges1, cmap='gray')
+    plt.subplot(235)
+    plt.imshow(edges2, cmap='gray')
+    plt.subplot(236)
+    plt.imshow(edges3, cmap='gray')
+        
+    plt.title('Canny Edges')
+    plt.axis('off')
+    plt.show()
+
+def sobel_detect(df):
+
+    img = df.astype(np.float32)
+    sobel_x = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_y = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=21)
+
+    sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
+
+    sobel_y2 = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=21)
+
+
+    plt.figure()
+    plt.subplot(221)
+    plt.imshow(img,cmap='gray')
+
+    plt.subplot(223)
+    plt.imshow(sobel_mag, cmap='gray')
+    plt.subplot(224)
+    plt.imshow(np.abs(sobel_y2), cmap='gray')
+
+    plt.axis('off')
+
+    plt.show()
+
+def laplacian_detect(df):
+    img = df.astype(np.float32)
+
+    lap = cv2.Laplacian(img, cv2.CV_64F)
+
+    plt.figure()
+    plt.subplot(211)
+    plt.imshow(img,cmap='gray')
+
+    plt.subplot(212)
+    plt.imshow(np.abs(lap), cmap='gray')
+    plt.axis('off')
+    plt.show()
+
+def contour(df):
+
+    # Convert fromat
+    img = df.astype(np.uint8)
+
+    # Normalise if necessary
+    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    # Smooth image
+    blur = cv2.GaussianBlur(img, (7, 7), 0)
+    # Canny edge detection
+    edges = cv2.Canny(blur, 20, 250)
+
+    # Morphological closing
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5) )
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel )
+
+    # Find contours
+    contours_open, hierarchy = cv2.findContours(edges, 
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE
+                                           )
+
+    # Find contours
+    contours_closed, hierarchy = cv2.findContours(closed, 
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE
+                                           )
+
+
+
+    # print(f"Found {len(contours_open)} contours")
+
+    # Draw contours
+    
+    contour_open_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_open_img, contours_open,-1,(255, 0, 0), 2)
+
+    contour_closed_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_closed_img, contours_closed,-1,(255, 0, 0), 2)
+
+
+
+    plt.figure()
+    plt.subplot(211)
+    plt.imshow(contour_open_img)
+    plt.subplot(212)
+    plt.imshow(contour_closed_img)
+
+    plt.axis('off')
+    plt.show()
+
 def bone_id(dat,dicom_path,filename,steps=20,width=10):
     y_size,x_size = dat.shape
     main = pd.DataFrame()
@@ -41,6 +156,12 @@ def bone_id(dat,dicom_path,filename,steps=20,width=10):
     for i in range(0+width,x_size,int((x_size-(width*steps))/steps)):
         # main[i] = pd.DataFrame(dat[offset:,i-width:i+width]).mean(axis=1) 
         main[i] = pd.DataFrame(dat[offset:,i-width:i+width]).max(axis=1) 
+
+    # canny_detect(dat)
+    # sobel_detect(dat)
+    # laplacian_detect(dat)
+
+    contour(dat)
 
     ## add initial threshold to narrow range or guess to remove skin:
     max_s = main.max().max()
@@ -105,8 +226,8 @@ def bone_id(dat,dicom_path,filename,steps=20,width=10):
     # plt.plot(skel_a, 'x',color = 'r')
     
     plt.tight_layout()
-    plt.savefig(dicom_path+filename + '_cluster.png')
-    # plt.show()
+    # plt.savefig(dicom_path+filename + '_cluster.png')
+    plt.show()
     return()
 
 
@@ -245,7 +366,7 @@ dicom_path = lf.ultra_point() + '/1MTP L2-9/'
 
 # print(dicom_path)
 
-'''
+
 # fname = 'DB105_2_CALC_L2-9'
 # flist = os.listdir(dicom_path)
 flist = [file for file in os.listdir(dicom_path) if os.path.isfile(os.path.join(dicom_path, file)) and '.' not in file]
@@ -255,7 +376,7 @@ for filename in flist:
     raw, cropped = load_dat(dicom_path+filename)
     bone_id(cropped,dicom_path,filename,steps=50,width=5)
     
-
+'''
 ###
 # 
 # Bone ID - find apex of the bone

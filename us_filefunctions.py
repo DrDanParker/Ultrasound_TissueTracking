@@ -1,12 +1,87 @@
-import xarray as xr
-# from netCDF4 import Dataset
-import numpy as np
+#########################################################
+#
+#  Ultrasound Dataset Tools
+#	us_filefunctions - cross script functions for data handling  
+#
+#	Author D Parker - University of Salford - Sept 26
+#
+#########################################################
+
 import os
 import pydicom
+import xarray as xr
+import numpy as np
+import pandas as pd
 import matplotlib.pylab as plt
-from PIL import Image
+# from netCDF4 import Dataset
 
 
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.299, 0.587, 0.144])
+
+def load_dat(dicom_file): # Loads dicom file, converts to pixel array and returns cropped data focused on image frame. 
+    
+    ds = pydicom.dcmread(dicom_file)
+    px = ds.pixel_array
+    gx = rgb2gray(px)
+
+    # Convert the new array to a DataArray
+    da = xr.DataArray(gx, dims=['x', 'y'],name=ds.PatientName)
+    #  attrs={'ImageType':ds.ImageType}) # Add more attributes as needed
+
+    # Crop for system settings 
+    # System is GE 
+    cropped = np.array(da[130:800,200:1200])
+
+    # plt.figure()
+    # plt.imshow(da)
+
+    # cropped = da[130:800,200:1200]
+    # plt.figure()
+    # plt.imshow(cropped)
+    # plt.show()
+
+    return(da, cropped)
+
+def dicom_meta(dicom_file):
+
+    # Load the DICOM file
+    ds = pydicom.dcmread(dicom_file)
+
+    metadata = {elem.name: str(elem.value) for elem in ds}
+    df = pd.DataFrame([metadata])
+
+    # df.to_excel(data_path + "full_dicom_metadata.xlsx", index=False)
+    for tag in df.keys():
+        print(tag + '  : ' + df[tag])
+    break
+
+    '''
+    # Define a list of common metadata tags to extract
+    tags_to_extract = [
+        "PatientName", "PatientID", "PatientBirthDate", "PatientSex",
+        "StudyDate", "StudyTime", "StudyDescription", "Modality",
+        "SeriesDescription", "InstitutionName", "Manufacturer",
+        "ReferringPhysicianName", "BodyPartExamined", "ProtocolName"
+    ]
+
+    # Extract available metadata
+    metadata = {}
+    for tag in tags_to_extract:
+        value = getattr(ds, tag, "N/A")
+        metadata[tag] = str(value)
+
+    # Convert to DataFrame
+    df = pd.DataFrame([metadata])
+
+    # Save to Excel
+    output_path = "dicom_metadata.xlsx"
+    df.to_excel(output_path, index=False)
+
+    print(f"Metadata saved to {output_path}")
+    '''
+
+'''
 def build_dataset(file_name): # dataset = folder/dataset.nc
     if not os.path.exists(file_name):
         # Create a new NetCDF file
@@ -25,7 +100,7 @@ def build_dataset(file_name): # dataset = folder/dataset.nc
     else:
         print(f"NetCDF file {file_name} already exists. Skipping creation.")
 
-'''
+
 def add_to_dataset(folder, dataset):
     # Open the NetCDF file
     
@@ -42,9 +117,6 @@ def add_to_dataset(folder, dataset):
     # Close the NetCDF file
     d.close()
 '''
-
-
-
 
 def load_dicom(fpath,folder):
 
@@ -70,37 +142,3 @@ def load_dicom(fpath,folder):
         ds = xr.Dataset(output)
         ds.to_netcdf(folder + '/d_to_x.nc')
         print('data exported to: ' + folder + '/' + folder + '_d_to_x.nc') 
-
-### Set Directory::
-main_path = 'C:/Users/User/University of Salford/Ultrasound in Diabetes - Documents/General/Pilot/Data/DICOM/'
-diab_path = 'Diabetes Group/'
-
-#pre_path =
-#non_path = 
-
-f_path = main_path + diab_path
-
-print(f_path)
-print(f_path.split('/'))
-
-dirs = f_path.split('/')
-print(dirs[:-2].join('/'))
-
-folder_list = os.listdir(f_path)
-print(folder_list)
-
-
-
-'''
-
-
-
-fname = f_path + 'example.nc'
-build_dataset(fname)
-
-'''
-'''
-folder_list = os.listdir(f_path)
-for folder in folder_list:
-    load_dicom(f_path, folder)
-'''

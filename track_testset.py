@@ -34,121 +34,103 @@ def load_dat(dicom_file): # Loads dicom file, converts to pixel array and return
     # plt.show()
     return(da, cropped)
 
-## Detection Algorithms
-def canny_detect(df):
+def contour_map(df): # Uses Canny filter to detect edges and create initial candidate contours
+    '''
+    Parameters:
+    df : grayscale image
+    Notes:
+    * Other filter approaches (Sobel and Laplacian) were tested for this, Canny was best. 
+    * Morphological closing was tested but had minimal effect on identified contours    
+    '''
 
+    # Convert fromat of image
     img = df.astype(np.uint8)
-    blur = cv2.GaussianBlur(img, (5, 5), 0)
-    edges1 = cv2.Canny(blur, 30, 200)
-    edges2 = cv2.Canny(blur, 50, 150)
-    edges3 = cv2.Canny(blur, 75, 200)
-
-    plt.figure()
-    plt.subplot(231)
-    plt.imshow(img,cmap='gray')
-    plt.subplot(232)
-    plt.imshow(blur,cmap='gray')
-    plt.subplot(234)
-    plt.imshow(edges1, cmap='gray')
-    plt.subplot(235)
-    plt.imshow(edges2, cmap='gray')
-    plt.subplot(236)
-    plt.imshow(edges3, cmap='gray')
-        
-    plt.title('Canny Edges')
-    plt.axis('off')
-    plt.show()
-
-def sobel_detect(df):
-
-    img = df.astype(np.float32)
-    sobel_x = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=3)
-    sobel_y = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=21)
-
-    sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
-
-    sobel_y2 = cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=21)
-
-
-    plt.figure()
-    plt.subplot(221)
-    plt.imshow(img,cmap='gray')
-
-    plt.subplot(223)
-    plt.imshow(sobel_mag, cmap='gray')
-    plt.subplot(224)
-    plt.imshow(np.abs(sobel_y2), cmap='gray')
-
-    plt.axis('off')
-
-    plt.show()
-
-def laplacian_detect(df):
-    img = df.astype(np.float32)
-
-    lap = cv2.Laplacian(img, cv2.CV_64F)
-
-    plt.figure()
-    plt.subplot(211)
-    plt.imshow(img,cmap='gray')
-
-    plt.subplot(212)
-    plt.imshow(np.abs(lap), cmap='gray')
-    plt.axis('off')
-    plt.show()
-
-def contour(df):
-
-    # Convert fromat
-    img = df.astype(np.uint8)
-
     # Normalise if necessary
     img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     # Smooth image
-    blur = cv2.GaussianBlur(img, (7, 7), 0)
+    blur = cv2.GaussianBlur(img, (7, 7), 0) #Removes most soft tissue noise
     # Canny edge detection
-    edges = cv2.Canny(blur, 20, 250)
-
-    # Morphological closing
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5) )
-    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel )
-
+    edges = cv2.Canny(blur, 75, 175) # Initial Levels - could be improved
     # Find contours
-    contours_open, hierarchy = cv2.findContours(edges, 
+    contours, hierarchy = cv2.findContours(edges, 
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE
                                            )
 
-    # Find contours
-    contours_closed, hierarchy = cv2.findContours(closed, 
-                                           cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE
-                                           )
-
-
-
-    # print(f"Found {len(contours_open)} contours")
-
-    # Draw contours
-    
-    contour_open_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    cv2.drawContours(contour_open_img, contours_open,-1,(255, 0, 0), 2)
-
-    contour_closed_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    cv2.drawContours(contour_closed_img, contours_closed,-1,(255, 0, 0), 2)
-
-
+    # Visual Check Point
+    # Draw and plot contours over original image
+    contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_img, contours,-1,(255, 0, 0), 2)
 
     plt.figure()
-    plt.subplot(211)
-    plt.imshow(contour_open_img)
-    plt.subplot(212)
-    plt.imshow(contour_closed_img)
-
+    plt.imshow(contour_img)
     plt.axis('off')
     plt.show()
 
+    return(contours)
+
+def shadow_score(img, contours,shadow_depth=30):
+    '''
+    Parameters:
+    img : grayscale image
+    contours : set of OpenCV contours
+    shadow_depth : pixels below contour to evaluate
+    '''
+
+    # Convert fromat of image
+    img = img.astype(np.uint8)
+    
+    contour_scores = []
+    for contour in contours:
+        length = cv2.arcLength(contour, False)
+        if length < 20:
+            continue
+
+        h, w = img.shape
+        mask = np.zeros_like(img, dtype=np.uint8)
+
+        # Draw contour
+        cv2.drawContours(mask, [contour], -1, 255, thickness=1)
+        ys, xs = np.where(mask > 0)
+
+        shadow_pixels = []
+        for x, y in zip(xs, ys):
+            y1 = y + 1
+            y2 = min(y + shadow_depth, h)
+        if y2 > y1:
+            shadow_pixels.extend(img[y1:y2, x].flatten())
+
+        if len(shadow_pixels) == 0:
+            score = np.inf
+
+        score = (shadow_pixels)
+        
+        contour_scores.append({'contour': contour,'length': length,'shadow_score': score})
+
+    contour_scores = sorted(contour_scores, key=lambda x: x['shadow_score'])
+    print(contour_scores[])
+    best_bone = contour_scores[0]['contour']
+
+
+    display = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(display,[best_bone],-1,(255, 0, 0),3)
+
+    plt.figure(figsize=(8,6))
+    plt.imshow(display)
+    plt.title("Bone Contour with Strongest Acoustic Shadow")
+    plt.axis('off')
+    plt.show()
+
+    return(contour_scores)
+
 def bone_id(dat,dicom_path,filename,steps=20,width=10):
+
+    contours = contour_map(dat)
+    contour_scores = shadow_score(dat,contours,shadow_depth=30)
+
+
+
+
     y_size,x_size = dat.shape
     main = pd.DataFrame()
 
@@ -161,8 +143,7 @@ def bone_id(dat,dicom_path,filename,steps=20,width=10):
     # sobel_detect(dat)
     # laplacian_detect(dat)
 
-    contour(dat)
-
+    
     ## add initial threshold to narrow range or guess to remove skin:
     max_s = main.max().max()
     

@@ -10,7 +10,15 @@ ultra_test = 'C:/Users/hls376/OneDrive - University of Salford/Code/[Data]_PYDat
 def ultra_point():
     return ultra_test
 
+#Code base for git directory on local system
+code_base = 'C:/Users/hls376/OneDrive - University of Salford/Code/GitRepos/Ultrasound_TissueTracking'
+sys.path.append(code_base)
+
+
+
 '''
+
+# flist = [file for file in os.listdir(code_base) if os.path.isfile(os.path.join(dicom_path, file)) and '.py' in file]
 # sys.path.append(ultra_test)
 
 print()

@@ -30,30 +30,6 @@ import numpy as np
 import matplotlib.pylab as plt
 import us_filefunctions as uff
 
-def load_dat(dicom_file): # Loads dicom file, converts to pixel array and returns cropped data focused on image frame. 
-    
-    ds = pydicom.dcmread(dicom_file)
-    px = ds.pixel_array
-    gx = uff.rgb2gray(px)
-
-    # Convert the new array to a DataArray
-    da = xr.DataArray(gx, dims=['x', 'y'],name=ds.PatientName)
-    #  attrs={'ImageType':ds.ImageType}) # Add more attributes as needed
-
-    # Crop for system settings 
-    # System is GE 
-    cropped = np.array(da[130:800,200:1200])
-
-    # plt.figure()
-    # plt.imshow(da)
-
-    # cropped = da[130:800,200:1200]
-    # plt.figure()
-    # plt.imshow(cropped)
-    # plt.show()
-
-    return(da, cropped)
-
 def contour_map(df): # Uses Canny filter to detect edges and create initial candidate contours
     '''
     Parameters:
@@ -108,12 +84,47 @@ def shadow_score(img, contours,shadow_depth=30):
         if length < 100:
             continue
 
+        
         h, w = img.shape
         mask = np.zeros_like(img, dtype=np.uint8)
 
+
+        above_height=20 # need to check typical bone depth - calc looks more like 20
+        below_depth=20
+        """
+        Calculate brightness ratio above vs below contour.
+        Lower ratio => more likely to be bone.
+        """
+
         # Draw contour
-        cv2.drawContours(mask, [contour], -1, 255, thickness=1)
+        cv2.drawContours(mask, [contour], -1, 255, 1)
         ys, xs = np.where(mask > 0)
+
+        if max(ys) < 100:
+            continue
+
+        above_vals = []
+        below_vals = []
+
+        for x, y in zip(xs, ys):
+
+            # Region above contour
+            y_top = max(0, y - above_height)
+            above_vals.extend(img[y_top:y, x].flatten())
+
+            # Region below contour
+            y_bottom = min(h, y + below_depth)
+            below_vals.extend(img[y+1:y_bottom, x].flatten())
+
+        if len(above_vals) == 0 or len(below_vals) == 0:
+            shadow_ratio = 0
+            
+
+        mean_above = np.mean(above_vals)
+        mean_below = np.mean(below_vals)
+
+        shadow_ratio = mean_above / (mean_below + 1e-6)
+
 
         shadow_pixels = []
         for x, y in zip(xs, ys):
@@ -131,7 +142,7 @@ def shadow_score(img, contours,shadow_depth=30):
 
         bone_score = (0.4*(255-score) + 0.2*length - 0.4*y_top)
 
-        contour_scores.append({'contour': contour,'length': length,'shadow_score': score,'bone_score':bone_score})
+        contour_scores.append({'contour': contour,'length': length,'shadow_score': score,'bone_score':bone_score,'shadow_ratio':shadow_ratio})
 
     s_contour_scores = sorted(contour_scores, key=lambda x: x['shadow_score'])
 
@@ -158,17 +169,33 @@ def shadow_score(img, contours,shadow_depth=30):
                   b_contour_scores[3]['contour'],
                   b_contour_scores[4]['contour']]
 
+    r_contour_scores = sorted(contour_scores, key=lambda x: x['shadow_ratio'])
+
+    for key, value in r_contour_scores[0].items():
+        if key != 'contour':
+            print(f'{key}={value}')
+
+
+    best_bone3 = [r_contour_scores[0]['contour'],
+                  r_contour_scores[1]['contour'],
+                  r_contour_scores[2]['contour'],
+                  r_contour_scores[3]['contour'],
+                  r_contour_scores[4]['contour']]
+
+
+
+
     plt.figure(figsize=(8,6))
 
-    plt.subplot(121)
+    plt.subplot(232)
     contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     cv2.drawContours(contour_img, contours,-1,(255, 0, 0), 2)
     plt.imshow(contour_img)
     plt.title("Contours")
-    plt.axis('off')
+    # plt.axis('off')
 
 
-    plt.subplot(222)
+    plt.subplot(234)
     display = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     cv2.drawContours(display,best_bone,-1,(255, 0, 0),3)
 
@@ -176,13 +203,22 @@ def shadow_score(img, contours,shadow_depth=30):
     plt.title("Shadow Score")
     plt.axis('off')
 
-    plt.subplot(224)
+    plt.subplot(235)
     display2 = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     cv2.drawContours(display2,best_bone2,-1,(255, 0, 0),3)
 
     plt.imshow(display2)
     plt.title("Bone Score")
     plt.axis('off')
+
+    plt.subplot(236)
+    display3 = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(display3,best_bone3,-1,(255, 0, 0),3)
+
+    plt.imshow(display3)
+    plt.title("Shadow Ratio")
+    plt.axis('off')
+
 
 
     plt.show()
@@ -199,7 +235,7 @@ def bone_id(dat,dicom_path,filename,steps=20,width=10):
 ##### RUN CODE
 
 #get file list:
-dicom_path = lf.ultra_point() + '/1MTP L2-9/'
+dicom_path = lf.ultra_point() + '/Heel L2-9/'
 flist = [file for file in os.listdir(dicom_path) if os.path.isfile(os.path.join(dicom_path, file)) and '.' not in file]
 
 for filename in flist:

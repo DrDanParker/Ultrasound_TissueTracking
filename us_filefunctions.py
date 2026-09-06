@@ -54,7 +54,7 @@ def dicom_meta(dicom_file):
     # df.to_excel(data_path + "full_dicom_metadata.xlsx", index=False)
     for tag in df.keys():
         print(tag + '  : ' + df[tag])
-    break
+        break
 
     '''
     # Define a list of common metadata tags to extract

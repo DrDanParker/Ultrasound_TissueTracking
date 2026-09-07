@@ -11,7 +11,8 @@ def ultra_point():
     return ultra_test
 
 #Code base for git directory on local system
-code_base = 'C:/Users/hls376/OneDrive - University of Salford/Code/GitRepos/Ultrasound_TissueTracking'
+# code_base = 'C:/Users/hls376/OneDrive - University of Salford/Code/GitRepos/Ultrasound_TissueTracking'
+code_base = 'C:/Users/hls376/Documents/Git_Repos/Ultrasound_TissueTracking'
 sys.path.append(code_base)
 
 

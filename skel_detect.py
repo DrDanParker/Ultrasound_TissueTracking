@@ -29,6 +29,65 @@ import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 import us_filefunctions as uff
+from scipy.signal import savgol_filter
+
+def extract_top_surface(contour):
+
+    points = contour.squeeze()
+
+    # Handle contours with very few points
+    if points.ndim < 2:
+        return None
+
+    top_surface = np.array([
+        [x, points[points[:,0]==x,1].min()]
+        for x in np.unique(points[:,0])])
+
+    dy = np.abs(np.diff(points[:,1]))
+
+    ys = points[:,1]
+    i_ymax = np.argmax(ys)
+    y_max =np.max(ys)
+
+    y_coords = [i_ymax,y_max]
+
+    y_smooth = savgol_filter(ys,window_length=9,polyorder=3)
+
+
+
+    dys = np.diff(y_smooth)
+    ddys = np.diff(np.diff(y_smooth))
+
+    split_idx = np.argmax(dy)
+    part1 = points[:split_idx]
+    part2 = points[split_idx:]
+    if np.mean(part1[:,1]) < np.mean(part2[:,1]):
+        top_surface2 = part1
+    else:
+        top_surface2 = part2
+
+    pm = np.argmin(ys)
+    pmax = points[pm]
+
+    smax = points[split_idx]
+
+
+    # y_smooth = savgol_filter(y,window_length=21,polyorder=3)
+
+
+
+    # print(len(top_surface))
+    # print(top_surface)
+    # top_surface = []
+    # for x in np.unique(points[:, 0]):
+    #     y = points[points[:, 0] == x, 1].min()
+    #     top_surface.append([x, y])
+
+    # print(len(top_surface))
+    # print(top_surface)    
+
+    return np.array(top_surface),np.array(top_surface2),np.array(y_smooth),np.array(dys),np.array(ddys),y_coords,pmax,smax
+    
 
 def contour_map(df): # Uses Canny filter to detect edges and create initial candidate contours
     '''
@@ -41,29 +100,167 @@ def contour_map(df): # Uses Canny filter to detect edges and create initial cand
 
     # Convert fromat of image
     img = df.astype(np.uint8)
+    h, w = img.shape # used to chop image from 40 - 100% depth for focus on skeletal structures.
+
+    
     # Normalise if necessary
-    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    img = cv2.normalize(img[int(h*0.4):int(h*0.45),250:750], None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
+
     # Smooth image
-    blur = cv2.GaussianBlur(img, (7, 7), 0) #Removes most soft tissue noise
+    blur = cv2.GaussianBlur(img, (15, 15), 0) #Removes most soft tissue noise
+    blur2 = cv2.GaussianBlur(img, (25, 25), 0) #Removes most soft tissue noise
 
     # Canny edge detection
     L2Gradient = True
-    edges = cv2.Canny(blur, 75, 175,L2gradient=L2Gradient) # Initial Levels - could be improved
+    edges = cv2.Canny(blur, 50, 100,L2gradient=L2Gradient) 
+
+    # Initial Levels - could be improved
+    # Calc = 
+    # MTH = Blur (7,7) edge 75,175
+    
     # Find contours
     contours, hierarchy = cv2.findContours(edges, 
                                            cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE
                                            )
 
-    # Visual Check Point
+
+    top_surfaces1 = []
+    top_surfaces2 = []
+    y_ = []
+    dy_ = []
+    ddy_ = []
+    pmax_ = []
+    smax_ = []
+    co_ords = []
+    for contour in contours:
+        if len(contour) > 15:
+            surface1,surface2,ys,dys,ddys,ycoords,pmax,smax = extract_top_surface(contour)
+            y_.append(ys)
+            dy_.append(dys)
+            ddy_.append(ddys)
+            co_ords.append(ycoords)
+            pmax_.append(pmax)
+            smax_.append(smax)
+            if surface1 is not None and len(surface1) > 10:
+                surface1 = surface1.reshape((-1, 1, 2)).astype(np.int32)
+                top_surfaces1.append(surface1)
+            if surface2 is not None and len(surface2) > 10:
+                surface2 = surface2.reshape((-1, 1, 2)).astype(np.int32)
+                top_surfaces2.append(surface2)
+
+
     # Draw and plot contours over original image
     contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    cv2.drawContours(contour_img, contours,-1,(255, 0, 0), 2)
+    cv2.drawContours(contour_img, contours,-1,(255, 0, 0))
+    
+    plt.subplot(211)
+    plt.imshow(contour_img)
 
-    # plt.figure()
-    # plt.imshow(contour_img)
+    for y in pmax_:
+        plt.plot(y[0],y[1],marker='*')
+
+    for y in smax_:
+        plt.plot(y[0],y[1],marker='+')
+
+    # plt.title("Blur 1 - 50-100")
     # plt.axis('off')
-    # plt.show()
+
+    plt.subplot(212)
+    for y in y_:
+        plt.plot(y)
+
+    for y in co_ords:
+        plt.plot(y[0],y[1],marker='*')
+
+
+    # plt.subplot(235)
+    # for y in dy_:
+    #     plt.plot(y)
+    # plt.subplot(236)
+    # for y in ddy_:
+    #     plt.plot(y)
+
+    # Visual Check Point
+    
+    # plt.figure()
+    # plt.subplot(321)
+    # plt.imshow(blur)
+    # plt.axis('off')
+
+    # plt.subplot(323)
+    # plt.imshow(img)
+    # plt.axis('off')
+
+    # plt.subplot(325)
+    # plt.imshow(blur2)
+    # plt.axis('off')
+
+    
+
+    # # Draw and plot contours over original image
+    # contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    # cv2.drawContours(contour_img, top_surfaces1,-1,(255, 0, 0), 2)
+    
+    # plt.subplot(324)
+    # plt.imshow(contour_img)
+    # plt.title("Blur 1 - 50-100")
+    # plt.axis('off')
+
+    # # Draw and plot contours over original image
+    # contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    # cv2.drawContours(contour_img, top_surfaces2,-1,(255, 0, 0), 2)
+    
+    # plt.subplot(326)
+    # plt.imshow(contour_img)
+    # plt.title("Blur 1 - 50-100")
+    # plt.axis('off')
+
+   
+
+    '''
+    L2Gradient = True
+    edges = cv2.Canny(blur2, 10, 50,L2gradient=L2Gradient) 
+
+    contours, hierarchy = cv2.findContours(edges, 
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE
+                                           )
+
+    top_surfaces = []
+    for contour in contours:
+        surface = extract_top_surface(contour)
+        if surface is not None and len(surface) > 10:
+            surface = surface.reshape((-1, 1, 2)).astype(np.int32)
+            top_surfaces.append(surface)
+
+
+    contour_img2 = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_img2, top_surfaces,-1,(255, 0, 0), 2)
+
+
+    plt.subplot(235)
+    plt.imshow(contour_img2)
+    plt.title("Blur 2 (no_loops) - 10-50")
+    plt.axis('off')
+
+    L2Gradient = True
+    edges = cv2.Canny(blur2, 10, 50,L2gradient=L2Gradient) 
+
+    contours, hierarchy = cv2.findContours(edges, 
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE
+                                           )
+
+    contour_img3 = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_img3, contours,-1,(255, 0, 0), 2)
+
+    plt.subplot(236)
+    plt.imshow(contour_img3)
+    plt.title("Blur 2 - 10-50")
+    plt.axis('off')
+    '''
+    plt.show()
 
     return(contours)
 
@@ -78,6 +275,8 @@ def shadow_score(img, contours,shadow_depth=30):
     # Convert fromat of image
     img = img.astype(np.uint8)
     
+
+
     contour_scores = []
     for contour in contours:
         length = cv2.arcLength(contour, False)
@@ -89,7 +288,7 @@ def shadow_score(img, contours,shadow_depth=30):
         mask = np.zeros_like(img, dtype=np.uint8)
 
 
-        above_height=20 # need to check typical bone depth - calc looks more like 20
+        above_height=60 # need to check typical bone depth - calc looks more like 20
         below_depth=20
         """
         Calculate brightness ratio above vs below contour.
@@ -100,7 +299,7 @@ def shadow_score(img, contours,shadow_depth=30):
         cv2.drawContours(mask, [contour], -1, 255, 1)
         ys, xs = np.where(mask > 0)
 
-        if max(ys) < 100:
+        if max(ys) < h/2:
             continue
 
         above_vals = []
@@ -146,9 +345,9 @@ def shadow_score(img, contours,shadow_depth=30):
 
     s_contour_scores = sorted(contour_scores, key=lambda x: x['shadow_score'])
 
-    for key, value in s_contour_scores[0].items():
-        if key != 'contour':
-            print(f'{key}={value}')
+    # for key, value in s_contour_scores[0].items():
+        # if key != 'contour':
+        #     print(f'{key}={value}')
 
     best_bone = [s_contour_scores[0]['contour'],
                  s_contour_scores[1]['contour'],
@@ -158,9 +357,9 @@ def shadow_score(img, contours,shadow_depth=30):
 
     b_contour_scores = sorted(contour_scores, key=lambda x: x['bone_score'])
 
-    for key, value in b_contour_scores[0].items():
-        if key != 'contour':
-            print(f'{key}={value}')
+    # for key, value in b_contour_scores[0].items():
+    #     if key != 'contour':
+    #         print(f'{key}={value}')
 
 
     best_bone2 = [b_contour_scores[0]['contour'],
@@ -171,9 +370,9 @@ def shadow_score(img, contours,shadow_depth=30):
 
     r_contour_scores = sorted(contour_scores, key=lambda x: x['shadow_ratio'])
 
-    for key, value in r_contour_scores[0].items():
-        if key != 'contour':
-            print(f'{key}={value}')
+    # for key, value in r_contour_scores[0].items():
+    #     if key != 'contour':
+    #         print(f'{key}={value}')
 
 
     best_bone3 = [r_contour_scores[0]['contour'],
@@ -185,9 +384,9 @@ def shadow_score(img, contours,shadow_depth=30):
 
 
 
-    plt.figure(figsize=(8,6))
+    
 
-    plt.subplot(232)
+    plt.subplot(233)
     contour_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     cv2.drawContours(contour_img, contours,-1,(255, 0, 0), 2)
     plt.imshow(contour_img)
@@ -227,8 +426,10 @@ def shadow_score(img, contours,shadow_depth=30):
 
 def bone_id(dat,dicom_path,filename,steps=20,width=10):
 
+    plt.figure(figsize=(15,9))
+
     contours = contour_map(dat)
-    contour_scores = shadow_score(dat,contours,shadow_depth=40)
+    # contour_scores = shadow_score(dat,contours,shadow_depth=40)
 
 
 

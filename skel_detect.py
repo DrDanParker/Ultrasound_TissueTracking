@@ -159,9 +159,11 @@ def contour_map(df): # Uses Canny filter to detect edges and create initial cand
 
     for y in pmax_:
         plt.plot(y[0],y[1],marker='*')
+        break
 
     for y in smax_:
         plt.plot(y[0],y[1],marker='+')
+        break
 
     # plt.title("Blur 1 - 50-100")
     # plt.axis('off')
@@ -169,9 +171,11 @@ def contour_map(df): # Uses Canny filter to detect edges and create initial cand
     plt.subplot(212)
     for y in y_:
         plt.plot(y)
+        break
 
     for y in co_ords:
         plt.plot(y[0],y[1],marker='*')
+        break
 
 
     # plt.subplot(235)

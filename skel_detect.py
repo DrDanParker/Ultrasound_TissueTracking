@@ -89,6 +89,64 @@ def extract_top_surface(contour):
     return np.array(top_surface),np.array(top_surface2),np.array(y_smooth),np.array(dys),np.array(ddys),y_coords,pmax,smax
     
 
+def bone_filt(img,dicom_path,filename):
+    
+    # Normalise if necessary
+    h, w = img.shape
+    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
+
+    # Initial Filter to Smooth Image
+    # blur = cv2.GaussianBlur(img, (15, 15), 0) #Removes most soft tissue noise
+    # blur = cv2.GaussianBlur(img, (25, 25), 0) #Removes most soft tissue noise
+    # blur = cv2.medianBlur(img, 5)
+    blur = cv2.bilateralFilter(img,d=15,sigmaColor=100,sigmaSpace=20)
+
+    # intensity_mask = cv2.threshold(blur, 100, 255, cv2.THRESH_BINARY)
+    # intensity_img = cv2.cvtColor(intensity_mask, cv2.COLOR_GRAY2RGB)
+
+
+    df = pd.DataFrame(blur)
+    intensity_mask = df.mask(df < np.max(df)*0.3,1)
+
+    # threshold = 100
+    # intensity_mask = (blur > threshold).astype(np.uint8)
+
+
+
+    shadow_depth =50
+    shadow_mask = np.zeros_like(blur, dtype=np.float32)
+    for y in range(blur.shape[0] - shadow_depth):
+        above = blur[y,:].astype(float)
+        below = np.mean(blur[y+30:y+shadow_depth,:],axis=0)
+        ratio = (above - below) / ( above + below + 1e-6 )
+        # for r in range(len(ratio)): 
+        #     if ratio[r] < 0: ratio[r] = 0
+        shadow_mask[y,:] = ratio*100
+
+    df = pd.DataFrame(shadow_mask)
+    shadow_mask = df.mask(df < 0,0)
+
+    bone_mask = intensity_mask * shadow_mask
+    # bone_mask = bone_mask.mask(bone_mask < np.max(bone_mask)/2, np.nan)
+
+    plt.figure()
+    plt.subplot(231)
+    plt.imshow(img)
+    plt.subplot(232)
+    plt.imshow(shadow_mask)
+    # plt.colorbar()
+    plt.subplot(233)
+    plt.imshow(intensity_mask)
+    # plt.colorbar()
+    plt.subplot(212)
+    plt.imshow(bone_mask)
+    plt.colorbar()
+    plt.savefig(dicom_path + filename + '.png')
+    # plt.show()
+
+    return(shadow_mask)
+
+
 def contour_map(df): # Uses Canny filter to detect edges and create initial candidate contours
     '''
     Parameters:
@@ -102,17 +160,9 @@ def contour_map(df): # Uses Canny filter to detect edges and create initial cand
     img = df.astype(np.uint8)
     h, w = img.shape # used to chop image from 40 - 100% depth for focus on skeletal structures.
 
-    
-    # Normalise if necessary
-    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
+    bone_img = bone_filt(img)
 
-    # Smooth image
-    # blur = cv2.GaussianBlur(img, (15, 15), 0) #Removes most soft tissue noise
-    # blur2 = cv2.GaussianBlur(img, (25, 25), 0) #Removes most soft tissue noise
-    # blur3 = cv2.medianBlur(img, 5)
-    blur4 = cv2.bilateralFilter(img,d=15,sigmaColor=100,sigmaSpace=20)
-
-
+    return
 
     shadow_depth = 40
 
@@ -515,23 +565,27 @@ def shadow_score(img, contours,shadow_depth=30):
 
     return(contour_scores)
 
-def bone_id(dat,dicom_path,filename,steps=20,width=10):
+# def bone_id(dat,dicom_path,filename,steps=20,width=10):
 
-    plt.figure(figsize=(15,9))
+    
 
-    contours = contour_map(dat)
+    # contours = contour_map(dat)
     # contour_scores = shadow_score(dat,contours,shadow_depth=40)
 
+    # def bone_filt(img):
 
 
 ##### RUN CODE
 
 #get file list:
-dicom_path = lf.ultra_point() + '/Heel L2-9/'
+dicom_path = lf.ultra_point() + '/Heel Hoc_L8/'
 flist = [file for file in os.listdir(dicom_path) if os.path.isfile(os.path.join(dicom_path, file)) and '.' not in file]
 
 for filename in flist:
+    print(filename)
     # load cropped data:
     raw, cropped = uff.load_dat(dicom_path+filename)
-    bone_id(cropped,dicom_path,filename,steps=50,width=5)
+    bone_filt(cropped,dicom_path,filename)
+
+    # bone_id(cropped,dicom_path,filename,steps=50,width=5)
     

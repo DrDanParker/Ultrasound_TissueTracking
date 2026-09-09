@@ -104,15 +104,102 @@ def contour_map(df): # Uses Canny filter to detect edges and create initial cand
 
     
     # Normalise if necessary
-    img = cv2.normalize(img[int(h*0.4):int(h*0.45),250:750], None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
+    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
 
     # Smooth image
-    blur = cv2.GaussianBlur(img, (15, 15), 0) #Removes most soft tissue noise
-    blur2 = cv2.GaussianBlur(img, (25, 25), 0) #Removes most soft tissue noise
+    # blur = cv2.GaussianBlur(img, (15, 15), 0) #Removes most soft tissue noise
+    # blur2 = cv2.GaussianBlur(img, (25, 25), 0) #Removes most soft tissue noise
+    # blur3 = cv2.medianBlur(img, 5)
+    blur4 = cv2.bilateralFilter(img,d=15,sigmaColor=100,sigmaSpace=20)
+
+
+
+    shadow_depth = 40
+
+    shadow1 = np.zeros_like(img,dtype=np.float32)
+    for y in range(img.shape[0]-shadow_depth):
+        shadow1[y,:] = (img[y,:].astype(float) - np.mean(img[y+1:y+40,:],axis=0))
+
+    shadow2 = np.zeros_like(blur4,dtype=np.float32)
+    for y in range(blur4.shape[0]-shadow_depth):
+        shadow2[y,:] = (blur4[y,:].astype(float) - np.mean(blur4[y+1:y+40,:],axis=0))
+
+
+    bone_response1 = np.zeros_like(img, dtype=np.float32)
+
+    for y in range(img.shape[0] - shadow_depth):
+        above = img[y,:].astype(float)
+        below = np.mean(img[y+1:y+shadow_depth,:],axis=0)
+        bone_response1[y,:] = (above - below) / ( above + below + 1e-6 )
+
+    bone_response2 = np.zeros_like(blur4, dtype=np.float32)
+
+    for y in range(blur4.shape[0] - shadow_depth):
+        above = blur4[y,:].astype(float)
+        below = np.mean(blur4[y+1:y+shadow_depth,:],axis=0)
+        bone_response2[y,:] = (above - below) / ( above + below + 1e-6 )
+
+
+
+
+    plt.subplot(321)
+    plt.imshow(img)
+    plt.subplot(322)
+    plt.imshow(blur4)
+    plt.subplot(323)
+    plt.imshow(shadow1)
+    plt.subplot(324)
+    plt.imshow(shadow2)
+    plt.subplot(325)
+    plt.imshow(bone_response1)
+    plt.subplot(326)
+    plt.imshow(bone_response2)
+
+
+    # plt.subplot(422)
+    # plt.imshow(blur)
+    # plt.subplot(424)
+    # plt.imshow(blur2)
+    # plt.subplot(426)
+    # plt.imshow(blur3)
+    # plt.subplot(428)
+    # plt.imshow(blur4)
+
+    plt.show()
+    return
 
     # Canny edge detection
     L2Gradient = True
-    edges = cv2.Canny(blur, 50, 100,L2gradient=L2Gradient) 
+    shadow = cv2.normalize(shadow, None, 0, 255, cv2.NORM_MINMAX,cv2.COLOR_GRAY2RGB).astype(np.uint8)
+    edges = cv2.Canny(shadow, 50, 150,L2gradient=L2Gradient) 
+
+    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,5))
+    # closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+
+    contours, hierarchy = cv2.findContours(edges, 
+                                           cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE
+                                           )
+
+
+
+
+
+    # Draw and plot contours over original image
+    contour_img = cv2.cvtColor(shadow, cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(contour_img, contours,-1,(255, 0, 0))
+
+
+
+    plt.subplot(212)
+    plt.imshow(contour_img)
+
+
+    plt.show()
+
+
+    return
+
 
     # Initial Levels - could be improved
     # Calc = 

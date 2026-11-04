@@ -5,14 +5,17 @@
 
 import sys
 #Ultra test set - includes dicom images for heel and forefoot from 2 ultrasound probe types. 
-ultra_test = 'C:/Users/hls376/OneDrive - University of Salford/Code/[Data]_PYData/Tracker_TestSet'
-    
+# ultra_test = 'C:/Users/hls376/OneDrive - University of Salford/Code/[Data]_PYData/Tracker_TestSet'
+ultra_test = 'C:/Users/DrDan/Documents/DataSets'
+
+
 def ultra_point():
     return ultra_test
 
 #Code base for git directory on local system
 # code_base = 'C:/Users/hls376/OneDrive - University of Salford/Code/GitRepos/Ultrasound_TissueTracking'
-code_base = 'C:/Users/hls376/Documents/Git_Repos/Ultrasound_TissueTracking'
+# code_base = 'C:/Users/hls376/Documents/Git_Repos/Ultrasound_TissueTracking'
+code_base = 'C:/Users/DrDan/Documents/Git/Ultrasound_TissueTracking'
 sys.path.append(code_base)
 
 
